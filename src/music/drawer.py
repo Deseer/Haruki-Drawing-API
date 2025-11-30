@@ -1,8 +1,6 @@
 from datetime import datetime
-from typing import Any, List, Dict
 import asyncio
 from PIL import Image
-from pydantic import BaseModel
 
 from src.profile.drawer import get_detailed_profile_card, get_basic_profile_card
 from src.base.configs import ASSETS_BASE_DIR, RESULT_ASSET_PATH
@@ -29,7 +27,7 @@ from src.base.plot import Canvas, FillBg, Frame, Grid, HSplit, ImageBox, Spacer,
 from src.base.utils import get_img_from_path, get_readable_timedelta, get_str_display_length
 
 
-# =========================== 从.model导入数据类型 =========================== #
+# =========================== 从.model导入常量和数据类型 =========================== #
 
 from .model import *
 
@@ -271,7 +269,7 @@ async def compose_music_list_image(
     for music_id, img in zip(rqd.jackets_path_list.keys(), loaded_jackets):
         jackets[music_id] = img
 
-    profile = rqd.profile_info
+    profile = rqd.profile
     if play_result_filter is None:
         play_result_filter = ["clear", "not_clear", "fc", "ap"]
     lv_musics_map = {}
@@ -331,7 +329,6 @@ async def compose_music_list_image(
     add_watermark(canvas)
     return await canvas.get_img()
 
-
 async def compose_play_progress_image(
     rqd: PlayProgressRequest
 ) -> Image.Image:
@@ -340,12 +337,12 @@ async def compose_play_progress_image(
     合成打歌进度图片
     
     TODO:
-        TextBox shadow 还未实现
+        TextBox shadow 暂未实现
     """
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
-            if rqd.profile_info:
-                await get_detailed_profile_card(rqd.profile_info)
+            if rqd.profile:
+                await get_detailed_profile_card(rqd.profile)
 
             bar_h, item_h, w = 200, 48, 48
             font_sz = 24
@@ -456,10 +453,18 @@ async def compose_detail_music_rewards_image(
     # 奖励的icon
     jewel_icon: Image.Image = await get_img_from_path(ASSETS_BASE_DIR, RESULT_ASSET_PATH+"/jewel.png")
     shard_icon: Image.Image = await get_img_from_path(ASSETS_BASE_DIR, RESULT_ASSET_PATH+"/shard.png")
+    # 连击奖励
+    combo_rewards = {}
+    for diff in ['hard', 'expert', 'master', 'append']:
+        combo_rewards[diff] = {
+            combo_reward.level: combo_reward.reward \
+            for combo_reward in rqd.combo_rewards[diff]
+        }
+    
     # 绘图
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
-            await get_detailed_profile_card(rqd.profile_info)
+            await get_detailed_profile_card(rqd.profile)
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_padding(16).set_bg(roundrect_bg(alpha=80)):
                 # 乐曲评级奖励
                 with HSplit().set_content_align('lt').set_item_align('lt').set_sep(24).set_padding(16).set_bg(roundrect_bg(alpha=80)):
@@ -470,20 +475,20 @@ async def compose_detail_music_rewards_image(
                         set_size((None, gh))
                 # 连击奖励
                 with HSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_item_bg(roundrect_bg(alpha=80)):
-                    for diff in rqd.combo_rewards:
+                    for diff in combo_rewards:
                         with HSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(16):
                             # 难度
                             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8):
                                 Spacer(w=gw, h=gh)
-                                for lv in sorted(rqd.combo_rewards[diff].keys()):
+                                for lv in sorted(combo_rewards[diff].keys()):
                                     TextBox(str(lv), TextStyle(DEFAULT_BOLD_FONT, 24, WHITE), overflow='clip'). \
                                         set_size((gh, gh)). \
                                         set_content_align('c').set_bg(roundrect_bg(fill=DIFF_COLORS[diff], radius=8))
                             # 奖励
                             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8):
                                 ImageBox(jewel_icon if diff != 'append' else shard_icon, size=(None, gh))
-                                for lv in sorted(rqd.combo_rewards[diff].keys()):
-                                    reward = rqd.combo_rewards[diff][lv]
+                                for lv in sorted(combo_rewards[diff].keys()):
+                                    reward = combo_rewards[diff][lv]
                                     TextBox(str(reward), style2, overflow='clip'). \
                                         set_size((gw, gh)). \
                                         set_content_align('l')
@@ -493,8 +498,8 @@ async def compose_detail_music_rewards_image(
                                     set_size((gw, gh)). \
                                     set_content_align('l') 
                                 acc = 0
-                                for lv in sorted(rqd.combo_rewards[diff].keys()):
-                                    acc += rqd.combo_rewards[diff][lv]
+                                for lv in sorted(combo_rewards[diff].keys()):
+                                    acc += combo_rewards[diff][lv]
                                     TextBox(str(acc), style2, overflow='clip'). \
                                         set_size((gw, gh)). \
                                         set_content_align('l')
@@ -524,12 +529,12 @@ async def compose_basic_music_rewards_image(
     style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(50, 50, 50)) 
     style2 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(75, 75, 75)) 
     # 奖励的icon
-    jewel_icon: Image.Image = await get_img_from_path(ASSETS_BASE_DIR, RESULT_ASSET_PATH+"/jewel.png")
-    shard_icon: Image.Image = await get_img_from_path(ASSETS_BASE_DIR, RESULT_ASSET_PATH+"/shard.png")
+    jewel_icon: Image.Image = await get_img_from_path(ASSETS_BASE_DIR, f"{RESULT_ASSET_PATH}/jewel.png")
+    shard_icon: Image.Image = await get_img_from_path(ASSETS_BASE_DIR, f"{RESULT_ASSET_PATH}/shard.png")
     # 绘图
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
-            await get_basic_profile_card(rqd.profile_info)
+            await get_basic_profile_card(rqd.profile)
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_padding(16).set_bg(roundrect_bg(alpha=80)):
                 # 说明
                 TextBox("仅显示简略估计数据（假设Clear的歌曲都是S评级，未FC的歌曲都没拿到连击奖励）",
@@ -543,7 +548,7 @@ async def compose_basic_music_rewards_image(
                         set_size((None, gh))
                 # 连击奖励
                 with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(16).set_bg(roundrect_bg(alpha=80)):
-                    for diff in rqd.combo_rewards:
+                    for diff in ['hard', 'expert', 'master', 'append']:
                         with HSplit().set_content_align('lt').set_item_align('lt').set_sep(24):
                             TextBox(f"{diff.upper()}", TextStyle(DEFAULT_BOLD_FONT, 24, WHITE), overflow='clip'). \
                                 set_bg(roundrect_bg(fill=DIFF_COLORS[diff], radius=8)). \
