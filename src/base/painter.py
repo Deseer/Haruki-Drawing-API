@@ -435,6 +435,20 @@ class RadialGradient(Gradient):
         return colors.astype(np.uint8)
 
 
+# TODO: 自适应颜色暂未实现
+@dataclass
+class AdaptiveTextColor:
+    pixelwise: bool = False
+    light: Color = WHITE
+    dark: Color = BLACK
+    threshold: float = 0.4
+
+ADAPTIVE_WB = AdaptiveTextColor()
+ADAPTIVE_SHADOW = AdaptiveTextColor(
+    light=(255, 255, 255, 100), 
+    dark=(0, 0, 0, 100), 
+)
+
 # =========================== 绘图类 =========================== #
 
 
