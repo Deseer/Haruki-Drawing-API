@@ -56,5 +56,5 @@ EXPOSE 8000
 VOLUME ["/app/haruki_drawing_api/data", "/app/haruki_drawing_api/config.yaml"]
 
 # 使用uv启动
-ENTRYPOINT ["uvicorn", "src.core.main:app"]
+ENTRYPOINT ["granian", "--interface", "asgi", "src.core.main:app"]
 CMD ["--host", "0.0.0.0", "--port", "8000"]
